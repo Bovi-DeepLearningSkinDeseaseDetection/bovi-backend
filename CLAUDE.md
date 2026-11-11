@@ -18,8 +18,8 @@ Mismos bounded contexts que la app móvil (`bovi-mobile-app/lib/`):
 | Contexto | Agregados | Endpoints (prefijo `/api/v1`) | HU |
 |---|---|---|---|
 | `iam` | `User` | `/auth/register`, `/auth/login`, `/auth/refresh` | HU14 |
-| `livestock` | `Animal` | `/sync/animals` (B2), `/animals` (B3) | HU15 (parte), HU13 |
-| `clinical` | `Evaluation` | `/sync/evaluations`, `/media/upload-url`, `/media/download-url` (B2), `/evaluations` (B3) | HU12, HU13 |
+| `livestock` | `Animal` | `/sync/animals`, `GET /animals` | HU15 (parte), HU13 |
+| `clinical` | `Evaluation` | `/sync/evaluations`, `/media/upload-url`, `/media/download-url`, `GET /evaluations` | HU12, HU13 |
 | `shared` | — | `/health` | RNF15 |
 
 Capas de cada contexto (`src/bovi/<contexto>/`):
@@ -77,6 +77,11 @@ pytest · ruff. Docker Compose en local; EC2 + Nginx + RDS + S3 en `sa-east-1`.
 - **S3:** `S3ImageStorage` (boto3) con dos clientes: interno (`S3_ENDPOINT_URL`) y el de las URLs
   prefirmadas (`S3_PUBLIC_ENDPOINT_URL`). En local es RustFS; en pruebas se reemplaza con
   `tests/fakes.py::FakeImageStorage` (fixture `storage`), salvo `test_s3_image_storage.py` (marca `s3`).
+- **Restauración (B3, HU13):** `GET /animals` (por arete) y `GET /evaluations` (más reciente primero,
+  cada una con `image_url` prefirmada). Paginación keyset con cursor opaco (`shared/domain/model/
+  valueobjects/page.py`): `limit` 1..100 (50 por defecto), `next_cursor` null en la última página y
+  `total`. La app restaura primero los animales y luego sigue `next_cursor`. Los registros que llegan
+  mientras se restaura no desplazan las páginas.
 - `migrations/env.py`: importa `<contexto>.infrastructure.persistence.sqlalchemy.entities` de cada contexto.
 
 ## 5. Modelo de datos (tablas y columnas en español)

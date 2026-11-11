@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 from bovi.livestock.application.internal.commandservices.animal_command_service import (
     AnimalCommandService,
 )
+from bovi.livestock.application.internal.queryservices.animal_query_service import (
+    AnimalQueryService,
+)
 from bovi.livestock.infrastructure.persistence.sqlalchemy.repositories.sqlalchemy_animal_repository import (  # noqa: E501
     SqlAlchemyAnimalRepository,
 )
@@ -25,3 +28,7 @@ def get_animal_command_service(
         unit_of_work=SqlAlchemyUnitOfWork(session),
         max_batch=settings.sync_max_animals,
     )
+
+
+def get_animal_query_service(session: Session = Depends(get_session)) -> AnimalQueryService:
+    return AnimalQueryService(animals=SqlAlchemyAnimalRepository(session))

@@ -1,11 +1,22 @@
 from collections.abc import Iterable
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from bovi.clinical.domain.model.aggregates.evaluation import Evaluation
+from bovi.clinical.domain.model.valueobjects.class_probabilities import (
+    ClassProbabilities,
+    ClassProbability,
+)
+from bovi.clinical.domain.model.valueobjects.clinical_code import ClinicalCode
+from bovi.clinical.domain.model.valueobjects.evaluation_enums import (
+    BodyZone,
+    EvaluationOutcome,
+    ImageOrigin,
+)
 from bovi.clinical.infrastructure.persistence.sqlalchemy.entities.evaluation_entity import (
     EvaluationEntity,
 )
@@ -56,3 +67,44 @@ class SqlAlchemyEvaluationRepository:
             .returning(EvaluationEntity.id)
         )
         return set(self._session.scalars(statement))
+
+    def page_for_user(
+        self, user_id: UUID, before: tuple[datetime, UUID] | None, limit: int
+    ) -> list[Evaluation]:
+        e = EvaluationEntity
+        statement = select(e).where(e.usuario_id == user_id)
+        if before is not None:
+            statement = statement.where(tuple_(e.fecha_hora, e.id) < tuple_(*before))
+        statement = statement.order_by(e.fecha_hora.desc(), e.id.desc()).limit(limit)
+        return [_to_domain(row) for row in self._session.scalars(statement)]
+
+    def count_for_user(self, user_id: UUID) -> int:
+        return self._session.scalar(
+            select(func.count())
+            .select_from(EvaluationEntity)
+            .where(EvaluationEntity.usuario_id == user_id)
+        )
+
+
+def _to_domain(row: EvaluationEntity) -> Evaluation:
+    # Rows were validated when they were synced: rebuild them as they are.
+    return Evaluation(
+        id=row.id,
+        user_id=row.usuario_id,
+        evaluated_at=row.fecha_hora,
+        image_origin=ImageOrigin(row.origen_imagen),
+        probabilities=ClassProbabilities(
+            tuple(ClassProbability(p["label"], p["probability"]) for p in row.probabilidades)
+        ),
+        predicted_class=row.clase_predicha,
+        confidence=row.confianza,
+        outcome=EvaluationOutcome(row.resultado),
+        clinical_codes=tuple(
+            ClinicalCode(c["system"], c["code"], c["display"]) for c in row.codigos_clinicos
+        ),
+        catalog_version=row.version_catalogo,
+        model_version=row.version_modelo,
+        inference_ms=row.tiempo_inferencia_ms,
+        animal_id=row.animal_id,
+        body_zone=BodyZone(row.zona_corporal) if row.zona_corporal else None,
+    )

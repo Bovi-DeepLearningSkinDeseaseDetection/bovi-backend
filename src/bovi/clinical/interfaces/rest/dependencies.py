@@ -10,6 +10,9 @@ from bovi.clinical.application.internal.commandservices.evaluation_command_servi
 from bovi.clinical.application.internal.commandservices.media_command_service import (
     MediaCommandService,
 )
+from bovi.clinical.application.internal.queryservices.evaluation_query_service import (
+    EvaluationQueryService,
+)
 from bovi.clinical.domain.services.image_storage import ImageStorage
 from bovi.clinical.infrastructure.persistence.sqlalchemy.repositories.sqlalchemy_evaluation_repository import (  # noqa: E501
     SqlAlchemyEvaluationRepository,
@@ -51,4 +54,13 @@ def get_evaluation_command_service(
         unit_of_work=SqlAlchemyUnitOfWork(session),
         max_batch=settings.sync_max_evaluations,
         max_image_bytes=settings.s3_max_image_bytes,
+    )
+
+
+def get_evaluation_query_service(
+    session: Session = Depends(get_session),
+    storage: ImageStorage = Depends(get_image_storage),
+) -> EvaluationQueryService:
+    return EvaluationQueryService(
+        evaluations=SqlAlchemyEvaluationRepository(session), storage=storage
     )

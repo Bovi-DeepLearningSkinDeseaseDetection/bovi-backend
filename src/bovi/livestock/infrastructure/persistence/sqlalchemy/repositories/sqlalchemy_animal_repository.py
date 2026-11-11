@@ -1,11 +1,12 @@
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from bovi.livestock.domain.model.aggregates.animal import Animal
+from bovi.livestock.domain.model.valueobjects.animal_sex import AnimalSex
 from bovi.livestock.domain.model.valueobjects.ear_tag import EarTag
 from bovi.livestock.infrastructure.persistence.sqlalchemy.entities.animal_entity import (
     AnimalEntity,
@@ -71,3 +72,27 @@ class SqlAlchemyAnimalRepository:
                 )
             )
         )
+
+    def page_for_user(self, user_id: UUID, after_ear_tag: str | None, limit: int) -> list[Animal]:
+        statement = select(AnimalEntity).where(AnimalEntity.usuario_id == user_id)
+        if after_ear_tag is not None:
+            statement = statement.where(AnimalEntity.arete > after_ear_tag)
+        rows = self._session.scalars(statement.order_by(AnimalEntity.arete).limit(limit))
+        return [_to_domain(row) for row in rows]
+
+    def count_for_user(self, user_id: UUID) -> int:
+        return self._session.scalar(
+            select(func.count()).select_from(AnimalEntity).where(AnimalEntity.usuario_id == user_id)
+        )
+
+
+def _to_domain(row: AnimalEntity) -> Animal:
+    # Rows were validated when they were saved: rebuild them as they are.
+    return Animal(
+        id=row.id,
+        user_id=row.usuario_id,
+        ear_tag=EarTag(row.arete),
+        breed=row.raza,
+        sex=AnimalSex(row.sexo),
+        created_at=row.creado_en,
+    )

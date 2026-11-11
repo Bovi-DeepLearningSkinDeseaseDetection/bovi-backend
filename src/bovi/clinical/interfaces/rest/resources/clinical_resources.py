@@ -110,3 +110,29 @@ class DownloadUrlResource(BaseModel):
 
 class DownloadUrlsResource(BaseModel):
     items: list[DownloadUrlResource]
+
+
+class EvaluationHistoryItemResource(BaseModel):
+    """Same fields the app sends in /sync/evaluations, plus the URL of the photo."""
+
+    id: UUID
+    evaluated_at: datetime
+    image_origin: str
+    probabilities: list[ProbabilityResource]
+    predicted_class: str
+    confidence: float
+    outcome: str
+    clinical_codes: list[ClinicalCodeResource]
+    catalog_version: str | None
+    model_version: str
+    inference_ms: int | None
+    animal_id: UUID | None
+    body_zone: str | None
+    image_url: str = Field(description="URL prefirmada para descargar la foto")
+    image_url_expires_in: int = Field(description="Segundos de validez de image_url")
+
+
+class EvaluationHistoryPageResource(BaseModel):
+    items: list[EvaluationHistoryItemResource]
+    total: int = Field(description="Evaluaciones sincronizadas del ganadero")
+    next_cursor: str | None = Field(description="Envíelo como `cursor`; null en la última página")
