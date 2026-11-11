@@ -1,0 +1,36 @@
+# Entorno local: PostgreSQL 16 (crea también la base bovi_test para pytest).
+#   docker compose up -d db      -> solo la base, la API corre con uvicorn en el host
+#   docker compose up --build    -> todo, incluida la API en http://localhost:8000
+# El emulador de S3 se agrega en B2: la imagen minio/minio ya no se publica y el reemplazo
+# (RustFS o SeaweedFS) debe validarse con el POST prefirmado de RNF18 antes de elegirlo.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bovi
+      POSTGRES_PASSWORD: bovi
+      POSTGRES_DB: bovi
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bovi -d bovi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://bovi:bovi@db:5432/bovi
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
