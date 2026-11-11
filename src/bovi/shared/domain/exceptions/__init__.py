@@ -4,6 +4,7 @@ from bovi.shared.domain.exceptions.domain_error import (
     DomainError,
     NotFoundError,
     PermissionDeniedError,
+    ServiceUnavailableError,
     ValidationError,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "DomainError",
     "NotFoundError",
     "PermissionDeniedError",
+    "ServiceUnavailableError",
     "ValidationError",
 ]

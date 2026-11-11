@@ -1,8 +1,8 @@
-# Entorno local: PostgreSQL 16 (crea también la base bovi_test para pytest).
-#   docker compose up -d db      -> solo la base, la API corre con uvicorn en el host
-#   docker compose up --build    -> todo, incluida la API en http://localhost:8000
-# El emulador de S3 se agrega en B2: la imagen minio/minio ya no se publica y el reemplazo
-# (RustFS o SeaweedFS) debe validarse con el POST prefirmado de RNF18 antes de elegirlo.
+# Entorno local: PostgreSQL 16 (crea también la base bovi_test para pytest) y RustFS como S3.
+#   docker compose up -d db s3 s3-init   -> servicios; la API corre con uvicorn en el host
+#   docker compose up --build            -> todo, incluida la API en http://localhost:8000
+# RustFS reemplaza a MinIO (minio/minio ya no se publica). Se validó que aplica la política del
+# POST prefirmado: tamaño máximo (content-length-range) y Content-Type image/jpeg (RNF18).
 services:
   db:
     image: postgres:16-alpine
@@ -21,16 +21,47 @@ services:
       timeout: 3s
       retries: 10
 
+  s3:
+    image: rustfs/rustfs:1.0.5
+    environment:
+      RUSTFS_ACCESS_KEY: bovilocal
+      RUSTFS_SECRET_KEY: bovilocal123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - s3data:/data
+
+  # Crea los buckets privados (desarrollo y pruebas) y termina.
+  s3-init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      - s3
+    environment:
+      AWS_ACCESS_KEY_ID: bovilocal
+      AWS_SECRET_ACCESS_KEY: bovilocal123
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - ./docker/s3:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/create-buckets.sh"]
+    restart: "no"
+
   api:
     build: .
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://bovi:bovi@db:5432/bovi
+      # La API habla con RustFS por la red interna; las URLs prefirmadas usan la pública.
+      S3_ENDPOINT_URL: http://s3:9000
+      S3_PUBLIC_ENDPOINT_URL: http://localhost:9000
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      s3-init:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:
+  s3data:

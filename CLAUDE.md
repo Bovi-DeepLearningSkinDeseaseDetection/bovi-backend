@@ -18,8 +18,8 @@ Mismos bounded contexts que la app móvil (`bovi-mobile-app/lib/`):
 | Contexto | Agregados | Endpoints (prefijo `/api/v1`) | HU |
 |---|---|---|---|
 | `iam` | `User` | `/auth/register`, `/auth/login`, `/auth/refresh` | HU14 |
-| `livestock` | `Animal` | `/sync/animals`, `/animals` | HU15 (parte), HU13 |
-| `clinical` | `Evaluation` | `/sync/evaluations`, `/media/upload-url`, `/media/download-url`, `/evaluations` | HU12, HU13 |
+| `livestock` | `Animal` | `/sync/animals` (B2), `/animals` (B3) | HU15 (parte), HU13 |
+| `clinical` | `Evaluation` | `/sync/evaluations`, `/media/upload-url`, `/media/download-url` (B2), `/evaluations` (B3) | HU12, HU13 |
 | `shared` | — | `/health` | RNF15 |
 
 Capas de cada contexto (`src/bovi/<contexto>/`):
@@ -68,20 +68,30 @@ pytest · ruff. Docker Compose en local; EC2 + Nginx + RDS + S3 en `sa-east-1`.
   bcrypt ≥ 4.1) y PyJWT HS256 con claim `typ` (`access` 1 h / `refresh` 30 días). Para proteger una ruta
   de otro contexto: `from bovi.iam.interfaces.acl.iam_context_facade import AuthenticatedUserId` y
   `def endpoint(user_id: AuthenticatedUserId)`. Valida el token y que la cuenta siga activa.
+- **Sincronización (B2, HU12/HU15):** cada registro recibe `accepted | duplicate | merged | rejected`
+  (`SyncItemResult`, en `shared`); uno inválido no bloquea al resto. Orden que debe seguir la app:
+  1) `/sync/animals` (hasta 50; un arete repetido con otro id responde `merged` y `canonical_id`),
+  2) `/media/upload-url` (hasta 20 ids) y POST multipart directo a S3 con los `fields` y luego `file`,
+  3) `/sync/evaluations` (hasta 20). La clave S3 la decide el backend:
+  `evaluaciones/{usuario_id}/{evaluacion_id}.jpg`. `HeadObject` va en paralelo y solo para las nuevas.
+- **S3:** `S3ImageStorage` (boto3) con dos clientes: interno (`S3_ENDPOINT_URL`) y el de las URLs
+  prefirmadas (`S3_PUBLIC_ENDPOINT_URL`). En local es RustFS; en pruebas se reemplaza con
+  `tests/fakes.py::FakeImageStorage` (fixture `storage`), salvo `test_s3_image_storage.py` (marca `s3`).
 - `migrations/env.py`: importa `<contexto>.infrastructure.persistence.sqlalchemy.entities` de cada contexto.
 
 ## 5. Modelo de datos (tablas y columnas en español)
 
 - **usuario:** id (UUID), nombre, correo (único, en minúsculas), hash_contrasena, activo,
   consentimiento_aceptado_en, consentimiento_version, creado_en
-- **animal:** id (UUID generado en el celular), usuario_id, arete (normalizado: sin espacios y en
-  mayúsculas, ≤ 20, `[A-Z0-9-]`), raza, sexo (`hembra` | `macho`), creado_en. Único `(usuario_id, arete)`.
-  Si llega otro uuid con un arete que ya existe, se fusiona y se responde el uuid existente.
-- **evaluacion:** id (UUID del celular, que también es la clave de idempotencia), usuario_id, animal_id,
-  fecha_hora, zona_corporal (`cabeza|cuello|lomo|flanco|patas|ubre|otra`), resultado
-  (`sana|lesion|no_concluyente`, calculado por la app), clase_predicha, confianza, probabilidades (JSON),
-  clinical_codes (JSON `[{system, code, display}]`), catalog_version, model_version,
-  origen_imagen (`camara|galeria`), image_key, creado_en
+- **animal:** id (UUID generado en el celular), usuario_id, arete (normalizado como en la app: sin
+  espacios y en mayúsculas, ≤ 20, `[A-Z0-9-]`), raza, sexo (`female` | `male`), creado_en (del celular),
+  sincronizado_en. Único `(usuario_id, arete)`.
+- **evaluacion:** id (UUID del celular, también clave de idempotencia), usuario_id, animal_id (nulo si no
+  se asignó), fecha_hora, zona_corporal (`head|neck|back|flank|legs|udder|other`), resultado
+  (`healthy|lesion|inconclusive`, calculado por la app), clase_predicha, confianza, probabilidades (JSONB
+  `[{label, probability}]`), codigos_clinicos (JSONB `[{system, code, display}]`), version_catalogo,
+  version_modelo, tiempo_inferencia_ms, origen_imagen (`camera|gallery`), clave_imagen, sincronizado_en.
+- Los valores de los enums son los nombres de los enums de la app (en inglés); las columnas, en español.
 
 ## 6. Reglas que no se negocian
 

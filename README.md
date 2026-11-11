@@ -10,7 +10,7 @@ backend solo respalda los datos:
 4. Devuelve el historial para restaurarlo en un dispositivo nuevo.
 
 **Stack:** Python 3.12 · FastAPI · SQLAlchemy 2 · Alembic · Pydantic v2 · PostgreSQL 16 ·
-Amazon S3 · Docker · pytest.
+Amazon S3 (RustFS en local) · Docker · pytest.
 
 ## Arquitectura
 
@@ -46,21 +46,23 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows  (Linux/macOS: source .venv/bin/activate)
 pip install -e ".[dev]"
 cp .env.example .env
-docker compose up -d db
+docker compose up -d db s3 s3-init
 alembic upgrade head
 uvicorn --factory bovi.main:app_factory --reload
 ```
 
 - API: http://localhost:8000 · documentación: http://localhost:8000/docs
-- El emulador local de S3 se agrega junto con las imágenes (B2).
+- RustFS (S3 local): API en http://localhost:9000, consola en http://localhost:9001
+  (`bovilocal` / `bovilocal123`).
 
 Para levantar todo en contenedores, incluida la API: `docker compose up --build`.
 
 ## Pruebas
 
 ```bash
-pytest                       # unitarias + integración (las de integración necesitan `docker compose up -d db`)
+pytest                       # todo (integración: `docker compose up -d db s3 s3-init`)
 pytest -m "not integration"  # solo unitarias
+pytest -m "not s3"           # sin RustFS
 pytest --cov                 # con cobertura
 ruff check src tests migrations && ruff format --check src tests migrations
 ```

@@ -46,3 +46,9 @@ class PermissionDeniedError(DomainError):
     """The user is authenticated but cannot do this."""
 
     code = "sin_permiso"
+
+
+class ServiceUnavailableError(DomainError):
+    """A service the use case needs (S3, for example) does not answer; retry later."""
+
+    code = "servicio_no_disponible"

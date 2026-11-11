@@ -14,6 +14,7 @@ from bovi.shared.domain.exceptions import (
     DomainError,
     NotFoundError,
     PermissionDeniedError,
+    ServiceUnavailableError,
     ValidationError,
 )
 from bovi.shared.interfaces.rest.resources.error_resource import ErrorResource, FieldErrorResource
@@ -26,6 +27,7 @@ _DOMAIN_STATUS: list[tuple[type[DomainError], int]] = [
     (ConflictError, status.HTTP_409_CONFLICT),
     (AuthenticationError, status.HTTP_401_UNAUTHORIZED),
     (PermissionDeniedError, status.HTTP_403_FORBIDDEN),
+    (ServiceUnavailableError, status.HTTP_503_SERVICE_UNAVAILABLE),
 ]
 
 _HTTP_MESSAGES: dict[int, tuple[str, str]] = {

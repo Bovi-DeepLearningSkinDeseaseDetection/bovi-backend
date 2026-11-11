@@ -11,7 +11,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from bovi import __version__
+from bovi.clinical.interfaces.rest import evaluation_sync_controller, media_controller
 from bovi.iam.interfaces.rest import auth_controller
+from bovi.livestock.interfaces.rest import animal_sync_controller
 from bovi.shared.infrastructure.configuration.settings import Settings, get_settings
 from bovi.shared.infrastructure.documentation.openapi.configuration.openapi_configuration import (
     openapi_options,
@@ -40,7 +42,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(version=__version__, lifespan=lifespan, **openapi_options(settings))
     register_error_handlers(app)
     app.include_router(health_controller.router)
-    app.include_router(auth_controller.router, prefix=API_V1_PREFIX)
+    for router in (
+        auth_controller.router,
+        animal_sync_controller.router,
+        media_controller.router,
+        evaluation_sync_controller.router,
+    ):
+        app.include_router(router, prefix=API_V1_PREFIX)
     return app
 
 

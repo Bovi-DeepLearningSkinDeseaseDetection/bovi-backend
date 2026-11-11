@@ -4,7 +4,7 @@ from enum import StrEnum
 from functools import lru_cache
 
 from fastapi import Request
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _MIN_SECRET_LENGTH = 32
@@ -44,9 +44,20 @@ class Settings(BaseSettings):
     s3_region: str = "sa-east-1"
     # Only for the local S3 emulator; empty in AWS.
     s3_endpoint_url: str | None = None
+    # Host of the presigned URLs when the phone reaches S3 by another address (local only).
+    s3_public_endpoint_url: str | None = None
     s3_upload_url_ttl_seconds: int = 900
     s3_download_url_ttl_seconds: int = 900
     s3_max_image_bytes: int = 512_000
+
+    # Records per sync request (HU12).
+    sync_max_evaluations: int = Field(default=20, ge=1, le=100)
+    sync_max_animals: int = Field(default=50, ge=1, le=200)
+
+    @field_validator("s3_endpoint_url", "s3_public_endpoint_url", mode="before")
+    @classmethod
+    def _empty_is_none(cls, value: object) -> object:
+        return value or None
 
     @property
     def is_production(self) -> bool:
@@ -60,7 +71,7 @@ class Settings(BaseSettings):
             )
         if self.is_production and self.bcrypt_rounds < 12:
             raise ValueError("BCRYPT_ROUNDS must be at least 12 in production.")
-        if self.is_production and self.s3_endpoint_url:
+        if self.is_production and (self.s3_endpoint_url or self.s3_public_endpoint_url):
             raise ValueError("S3_ENDPOINT_URL is only for local development.")
         return self
 

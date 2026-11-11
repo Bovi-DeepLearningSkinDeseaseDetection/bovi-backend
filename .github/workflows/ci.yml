@@ -27,13 +27,32 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # S3 real para las pruebas de la política del POST prefirmado (RNF18).
+      s3:
+        image: rustfs/rustfs:1.0.5
+        env:
+          RUSTFS_ACCESS_KEY: bovilocal
+          RUSTFS_SECRET_KEY: bovilocal123
+        ports:
+          - 9000:9000
     env:
       APP_ENV: test
       DATABASE_URL: postgresql+psycopg://bovi:bovi@localhost:5432/bovi_test
       TEST_DATABASE_URL: postgresql+psycopg://bovi:bovi@localhost:5432/bovi_test
       JWT_SECRET: secreto-de-ci-con-mas-de-32-caracteres-123
+      TEST_S3_ENDPOINT_URL: http://localhost:9000
+      AWS_ACCESS_KEY_ID: bovilocal
+      AWS_SECRET_ACCESS_KEY: bovilocal123
     steps:
       - uses: actions/checkout@v4
+
+      - name: Esperar a RustFS
+        run: |
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:9000 && exit 0
+            sleep 1
+          done
+          echo "RustFS no respondió" && exit 1
 
       - uses: actions/setup-python@v5
         with:

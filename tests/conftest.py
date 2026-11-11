@@ -12,7 +12,9 @@ running unnoticed.
 
 import os
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from alembic import command
@@ -22,13 +24,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
-import bovi.iam.infrastructure.persistence.sqlalchemy.entities  # noqa: F401  (registers tables)
+import bovi.clinical.infrastructure.persistence.sqlalchemy.entities  # noqa: F401  (registers tables)
+import bovi.iam.infrastructure.persistence.sqlalchemy.entities  # noqa: F401
+import bovi.livestock.infrastructure.persistence.sqlalchemy.entities  # noqa: F401
+from bovi.clinical.interfaces.rest.dependencies import get_image_storage
 from bovi.main import create_app
 from bovi.shared.infrastructure.configuration.settings import Environment, Settings
 from bovi.shared.infrastructure.persistence.sqlalchemy.configuration.database import (
     Base,
     Database,
 )
+from tests.fakes import FakeImageStorage
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -95,3 +101,36 @@ def client(app: FastAPI) -> Iterator[TestClient]:
     # raise_server_exceptions=False: check the 500 response instead of the raised error.
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def storage(app: FastAPI) -> FakeImageStorage:
+    """S3 replaced by memory for the API tests."""
+    fake = FakeImageStorage()
+    app.dependency_overrides[get_image_storage] = lambda: fake
+    return fake
+
+
+@dataclass(frozen=True)
+class Farmer:
+    id: UUID
+    headers: dict[str, str]
+
+
+def sign_up(client: TestClient, email: str = "juan.perez@example.com") -> Farmer:
+    """Creates a farmer and returns their id and the Authorization header of their session."""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "name": "Ganadero de prueba",
+            "email": email,
+            "password": "establo2026",
+            "consent_accepted": True,
+        },
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    return Farmer(
+        id=UUID(body["user"]["id"]),
+        headers={"Authorization": f"Bearer {body['access_token']}"},
+    )
