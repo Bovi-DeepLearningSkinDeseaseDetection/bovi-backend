@@ -62,6 +62,12 @@ pytest · ruff. Docker Compose en local; EC2 + Nginx + RDS + S3 en `sa-east-1`.
   `{"code", "message", "details": [{"field", "message"}]}` con mensajes en español, incluidos los de
   validación de Pydantic.
 - `bovi/main.py`: `create_app(settings)`; cada contexto registra su router con el prefijo `API_V1_PREFIX`.
+- `shared/domain/repositories/unit_of_work.py` + `SqlAlchemyUnitOfWork`: el servicio de aplicación
+  llama `commit()` al final del caso de uso.
+- **iam (B1, HU14):** `/auth/register|login|refresh`. bcrypt directo (no passlib, que no funciona con
+  bcrypt ≥ 4.1) y PyJWT HS256 con claim `typ` (`access` 1 h / `refresh` 30 días). Para proteger una ruta
+  de otro contexto: `from bovi.iam.interfaces.acl.iam_context_facade import AuthenticatedUserId` y
+  `def endpoint(user_id: AuthenticatedUserId)`. Valida el token y que la cuenta siga activa.
 - `migrations/env.py`: importa `<contexto>.infrastructure.persistence.sqlalchemy.entities` de cada contexto.
 
 ## 5. Modelo de datos (tablas y columnas en español)

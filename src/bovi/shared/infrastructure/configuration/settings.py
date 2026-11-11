@@ -3,6 +3,7 @@
 from enum import StrEnum
 from functools import lru_cache
 
+from fastapi import Request
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(min_length=1)
     jwt_access_ttl_minutes: int = 60
     jwt_refresh_ttl_days: int = 30
+    jwt_issuer: str = "bovi-api"
+    # Cost of bcrypt: 12 in production; tests lower it to stay fast.
+    bcrypt_rounds: int = Field(default=12, ge=4, le=16)
+    # Edition of the data consent text the app shows on sign up (Ley N.° 29733).
+    consent_version: str = "2026.1"
 
     s3_bucket: str = "bovi-evaluaciones"
     s3_region: str = "sa-east-1"
@@ -52,6 +58,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"JWT_SECRET must have at least {_MIN_SECRET_LENGTH} characters in production."
             )
+        if self.is_production and self.bcrypt_rounds < 12:
+            raise ValueError("BCRYPT_ROUNDS must be at least 12 in production.")
         if self.is_production and self.s3_endpoint_url:
             raise ValueError("S3_ENDPOINT_URL is only for local development.")
         return self
@@ -60,3 +68,8 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def get_app_settings(request: Request) -> Settings:
+    """Settings the running app was created with (tests pass their own)."""
+    return request.app.state.settings
