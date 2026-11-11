@@ -88,6 +88,7 @@ En AWS, las credenciales de S3 vienen del rol IAM de la EC2, no de variables.
 
 ## Despliegue
 
-EC2 t3.small (Nginx con HTTPS → contenedor de la API en el puerto 8000), RDS PostgreSQL 16 en una
-subred privada y un bucket S3 privado y cifrado, todo en `sa-east-1`. Al iniciar, el contenedor aplica
-las migraciones (`RUN_MIGRATIONS=true`) y levanta uvicorn con `WEB_CONCURRENCY` workers.
+Producción en AWS (`sa-east-1`): EC2 t3.small con Nginx (HTTPS, Let's Encrypt) delante de la API,
+RDS PostgreSQL 16 privado y S3 privado. La infraestructura está en `infra/terraform`, los archivos
+del servidor en `deploy/` y el procedimiento completo, con costos, backups y restauración, en
+[docs/despliegue.md](docs/despliegue.md).

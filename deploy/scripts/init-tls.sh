@@ -5,7 +5,7 @@
 set -eu
 
 : "${DOMAIN:?Defina DOMAIN}"
-: "${EMAIL:?Defina EMAIL (avisos de vencimiento de Let's Encrypt)}"
+: "${EMAIL:?Defina EMAIL para los avisos de vencimiento del certificado}"
 
 mkdir -p /opt/bovi/letsencrypt /opt/bovi/certbot-www
 
