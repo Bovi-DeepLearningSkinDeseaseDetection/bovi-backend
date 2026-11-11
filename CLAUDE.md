@@ -82,6 +82,10 @@ pytest · ruff. Docker Compose en local; EC2 + Nginx + RDS + S3 en `sa-east-1`.
   valueobjects/page.py`): `limit` 1..100 (50 por defecto), `next_cursor` null en la última página y
   `total`. La app restaura primero los animales y luego sigue `next_cursor`. Los registros que llegan
   mientras se restaura no desplazan las páginas.
+- **Despliegue (B4):** `deploy/` (compose de producción, Nginx con TLS y límites, scripts de despliegue y
+  de restauración), `infra/terraform` (VPC, EC2, RDS, S3, IAM, SSM, alarmas y presupuesto),
+  `docs/despliegue.md` (runbook), `loadtest/` + `docs/pruebas/carga.md` (RNF16) y `security/zap` (RNF5).
+  La infraestructura **no está aplicada**: `terraform apply` lo ejecuta el equipo (genera costos).
 - `migrations/env.py`: importa `<contexto>.infrastructure.persistence.sqlalchemy.entities` de cada contexto.
 
 ## 5. Modelo de datos (tablas y columnas en español)
