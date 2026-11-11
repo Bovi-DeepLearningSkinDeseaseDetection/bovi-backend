@@ -25,6 +25,7 @@ from bovi.shared.infrastructure.documentation.openapi.configuration.openapi_conf
 from bovi.shared.infrastructure.persistence.sqlalchemy.configuration.database import Database
 from bovi.shared.interfaces.rest import health_controller
 from bovi.shared.interfaces.rest.error_handlers import register_error_handlers
+from bovi.shared.interfaces.rest.security_headers import SecurityHeadersMiddleware
 
 API_V1_PREFIX = "/api/v1"
 
@@ -44,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.database.dispose()
 
     app = FastAPI(version=__version__, lifespan=lifespan, **openapi_options(settings))
+    app.add_middleware(SecurityHeadersMiddleware)
     register_error_handlers(app)
     app.include_router(health_controller.router)
     for router in (

@@ -1,0 +1,98 @@
+# Nginx de producción: termina TLS y reenvía a la API (contenedor "api", puerto 8000).
+# La imagen oficial reemplaza ${DOMAIN} al iniciar; las variables de Nginx ($host...) no se tocan.
+
+server_tokens off;
+
+# Inicio de sesión y registro: frena la fuerza bruta de contraseñas por IP.
+limit_req_zone $binary_remote_addr zone=auth:10m rate=30r/m;
+# Resto de la API: holgado para la sincronización en lotes.
+limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
+limit_req_status 429;
+
+upstream bovi_api {
+    server api:8000;
+    keepalive 16;
+}
+
+# HTTP: solo el desafío de Let's Encrypt; todo lo demás va a HTTPS.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${DOMAIN};
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    # RNF5: TLS 1.2 o superior.
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    charset utf-8;
+    # Las locations que usan add_header no heredan este; ver los errores más abajo.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Un lote de 20 evaluaciones pesa unos 40 KB; las fotos van directo a S3, nunca por aquí.
+    client_max_body_size 1m;
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+
+    gzip on;
+    gzip_types application/json;
+    gzip_min_length 1024;
+
+    # Errores del propio Nginx con el mismo formato que la API: {code, message, details}.
+    error_page 413 = @too_large;
+    error_page 429 = @too_many;
+    error_page 502 503 504 = @unavailable;
+
+    location @too_large {
+        default_type application/json;
+        return 413 '{"code":"contenido_muy_grande","message":"El contenido enviado es demasiado grande.","details":[]}';
+    }
+
+    location @too_many {
+        default_type application/json;
+        add_header Retry-After 60 always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        return 429 '{"code":"demasiadas_solicitudes","message":"Demasiadas solicitudes. Espere un momento e intente de nuevo.","details":[]}';
+    }
+
+    location @unavailable {
+        default_type application/json;
+        add_header Retry-After 30 always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        return 503 '{"code":"servicio_no_disponible","message":"El servicio no está disponible. Intente de nuevo en unos minutos.","details":[]}';
+    }
+
+    location = /health {
+        access_log off;
+        include /etc/nginx/snippets/proxy.conf;
+    }
+
+    location /api/v1/auth/ {
+        limit_req zone=auth burst=10 nodelay;
+        include /etc/nginx/snippets/proxy.conf;
+    }
+
+    location / {
+        limit_req zone=api burst=40 nodelay;
+        include /etc/nginx/snippets/proxy.conf;
+    }
+}
