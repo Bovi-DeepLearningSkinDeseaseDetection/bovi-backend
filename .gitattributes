@@ -3,3 +3,8 @@
 *.py text eol=lf
 *.sql text eol=lf
 Dockerfile text eol=lf
+*.conf text eol=lf
+*.template text eol=lf
+*.tf text eol=lf
+*.tftpl text eol=lf
+*.yml text eol=lf

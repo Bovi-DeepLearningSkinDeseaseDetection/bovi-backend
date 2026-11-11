@@ -1,0 +1,30 @@
+#!/bin/bash
+# Primer arranque de la EC2: instala Docker y prepara /opt/bovi. El código se despliega
+# después con deploy/scripts/deploy.sh (ver docs/despliegue.md).
+set -euxo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y docker.io docker-compose-v2 git jq
+snap install aws-cli --classic
+systemctl enable --now docker
+usermod -aG docker ubuntu
+
+mkdir -p /opt/bovi/letsencrypt /opt/bovi/certbot-www
+chown -R ubuntu:ubuntu /opt/bovi
+
+cat > /opt/bovi/compose.env <<EOF
+DOMAIN=${domain}
+EOF
+
+cat > /opt/bovi/deploy.env <<EOF
+AWS_REGION=${region}
+SSM_PREFIX=${ssm_prefix}
+EOF
+
+# Recarga Nginx a diario para tomar el certificado que renueva el contenedor certbot.
+cat > /etc/cron.d/bovi-tls <<'EOF'
+0 4 * * * ubuntu sh /opt/bovi/app/deploy/scripts/renew-tls.sh >> /var/log/bovi-tls.log 2>&1
+EOF
+touch /var/log/bovi-tls.log
+chown ubuntu:ubuntu /var/log/bovi-tls.log
