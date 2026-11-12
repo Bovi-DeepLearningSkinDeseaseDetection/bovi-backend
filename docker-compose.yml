@@ -1,0 +1,69 @@
+# Entorno local: PostgreSQL 16 (crea también la base bovi_test para pytest) y RustFS como S3.
+#   docker compose up -d db s3 s3-init   -> servicios; la API corre con uvicorn en el host
+#   docker compose up --build            -> todo, incluida la API en http://localhost:8000
+# RustFS reemplaza a MinIO (minio/minio ya no se publica). Se validó que aplica la política del
+# POST prefirmado: tamaño máximo (content-length-range) y Content-Type image/jpeg (RNF18).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bovi
+      POSTGRES_PASSWORD: bovi
+      POSTGRES_DB: bovi
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bovi -d bovi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  s3:
+    image: rustfs/rustfs:1.0.5
+    environment:
+      RUSTFS_ACCESS_KEY: bovilocal
+      RUSTFS_SECRET_KEY: bovilocal123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - s3data:/data
+
+  # Crea los buckets privados (desarrollo y pruebas) y termina.
+  s3-init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      - s3
+    environment:
+      AWS_ACCESS_KEY_ID: bovilocal
+      AWS_SECRET_ACCESS_KEY: bovilocal123
+      AWS_DEFAULT_REGION: us-east-1
+    volumes:
+      - ./docker/s3:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/create-buckets.sh"]
+    restart: "no"
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://bovi:bovi@db:5432/bovi
+      # La API habla con RustFS por la red interna; las URLs prefirmadas usan la pública.
+      S3_ENDPOINT_URL: http://s3:9000
+      # Dirección de RustFS que verá el celular en las URLs de las fotos. En .env:
+      #   emulador: http://10.0.2.2:9000 · celular en la misma red: http://<IP de la PC>:9000
+      S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      s3-init:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  s3data:

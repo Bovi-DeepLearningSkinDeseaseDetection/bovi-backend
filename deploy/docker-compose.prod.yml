@@ -1,0 +1,55 @@
+# Producción en la EC2: la API detrás de Nginx con HTTPS (Let's Encrypt).
+# PostgreSQL es Amazon RDS y las fotos van a Amazon S3: aquí no hay base de datos ni S3 locales.
+#
+#   cd /opt/bovi/app
+#   docker compose -f deploy/docker-compose.prod.yml --env-file /opt/bovi/compose.env up -d --build
+#
+# /opt/bovi/compose.env define DOMAIN; /opt/bovi/api.env tiene la configuración de la API
+# (la genera deploy/scripts/render-env.sh desde SSM Parameter Store). Ver docs/despliegue.md.
+name: bovi
+
+services:
+  api:
+    build: ..
+    image: bovi-backend:latest
+    env_file: /opt/bovi/api.env
+    environment:
+      APP_ENV: production
+      # Solo Nginx llega a la API, por la red interna de Docker.
+      FORWARDED_ALLOW_IPS: "*"
+    expose:
+      - "8000"
+    restart: unless-stopped
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    image: nginx:1.28-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?Defina DOMAIN en /opt/bovi/compose.env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - /opt/bovi/letsencrypt:/etc/letsencrypt:ro
+      - /opt/bovi/certbot-www:/var/www/certbot:ro
+    restart: unless-stopped
+    logging: *logging
+
+  # Renueva el certificado; deploy/scripts/renew-tls.sh recarga Nginx después.
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - /opt/bovi/letsencrypt:/etc/letsencrypt
+      - /opt/bovi/certbot-www:/var/www/certbot
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"]
+    restart: unless-stopped
+    logging: *logging

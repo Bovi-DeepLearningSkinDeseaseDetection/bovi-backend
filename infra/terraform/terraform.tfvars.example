@@ -1,0 +1,11 @@
+# Copie como terraform.tfvars (no se sube a git) y complete.
+domain_name = "api.ejemplo.pe"
+alert_email = "alertas@ejemplo.pe"
+
+# Opcionales
+# region                   = "sa-east-1"
+# monthly_budget_usd       = 50
+# ssh_allowed_cidr         = "200.1.2.3/32"
+# ssh_key_name             = "bovi-admin"
+# enable_health_check      = true
+# db_backup_retention_days = 7
