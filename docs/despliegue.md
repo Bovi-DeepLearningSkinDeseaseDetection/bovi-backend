@@ -4,6 +4,9 @@ Runbook para poner el backend en producción según la arquitectura física: **E
 Nginx (HTTPS) y la API en Docker, **RDS PostgreSQL 16** en una subred privada y **S3** para las
 fotos, todo en `sa-east-1`. La infraestructura está en [`infra/terraform`](../infra/terraform).
 
+> ¿Primera vez con AWS? Siga [despliegue-paso-a-paso.md](despliegue-paso-a-paso.md): crea la
+> cuenta, instala las herramientas y despliega, explicado desde cero.
+
 > Crear la infraestructura **genera costos** en la cuenta de AWS. Revise la sección 1 antes de
 > ejecutar `terraform apply`.
 
