@@ -26,3 +26,7 @@ infra/terraform/*.tfstate.*
 infra/terraform/*.tfvars
 !infra/terraform/terraform.tfvars.example
 infra/terraform/.terraform.lock.hcl.bak
+# El plan guardado y los logs incluyen las contraseñas generadas
+infra/terraform/tfplan
+infra/terraform/*.log
+/docs/despliegue-paso-a-paso.md

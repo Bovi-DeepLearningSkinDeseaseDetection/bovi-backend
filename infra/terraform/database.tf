@@ -16,8 +16,9 @@ resource "aws_db_parameter_group" "postgres16" {
 
   # Solo conexiones cifradas (SQL sobre TLS).
   parameter {
-    name  = "rds.force_ssl"
-    value = "1"
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot" # como lo registra RDS; la instancia nace ya con este valor
   }
 
   # Registra las consultas de más de 500 ms (RNF16: p95 <= 500 ms).
